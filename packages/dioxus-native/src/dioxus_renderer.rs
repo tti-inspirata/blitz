@@ -4,32 +4,26 @@ use std::{any::Any, cell::RefCell};
 
 use anyrender::{RenderContext, WindowRenderer};
 
-#[cfg(any(
-    feature = "vello",
-    all(
-        not(feature = "alt-renderer"),
-        not(all(target_os = "ios", target_abi = "sim"))
-    )
-))]
-pub use anyrender_vello::{
-    VelloRendererOptions, VelloWindowRenderer as InnerRenderer,
-    wgpu::{Features, Limits},
-};
-
-#[cfg(any(
-    feature = "vello-cpu-base",
-    all(
-        not(feature = "alt-renderer"),
-        all(target_os = "ios", target_abi = "sim")
-    )
-))]
-use anyrender_vello_cpu::VelloCpuWindowRenderer as InnerRenderer;
-
-#[cfg(feature = "vello-hybrid")]
-use anyrender_vello_hybrid::VelloHybridWindowRenderer as InnerRenderer;
-
-#[cfg(feature = "skia")]
-use anyrender_skia::SkiaWindowRenderer as InnerRenderer;
+// Renderer imports
+cfg_if::cfg_if! {
+    if #[cfg(feature = "vello")] {
+        pub use anyrender_vello::{
+            VelloRendererOptions as InnerRendererOptions, VelloWindowRenderer as InnerRenderer,
+            wgpu::{Features, Limits},
+        };
+    } else if #[cfg(feature = "vello-cpu-base")] {
+        use anyrender_vello_cpu::VelloCpuWindowRenderer as InnerRenderer;
+    } else if #[cfg(feature = "skia")] {
+        use anyrender_skia::SkiaWindowRenderer as InnerRenderer;
+        } else if #[cfg(feature = "vello-hybrid")] {
+        pub use anyrender_vello_hybrid::{
+            VelloHybridRendererOptions as InnerRendererOptions, VelloHybridWindowRenderer as InnerRenderer,
+            wgpu::{Features, Limits},
+        };
+    } else {
+        compile_error!("At least one renderer feature must be enabled");
+    }
+}
 
 #[derive(Clone)]
 pub struct DioxusNativeWindowRenderer {
@@ -48,15 +42,9 @@ impl DioxusNativeWindowRenderer {
         Self::with_inner_renderer(vello_renderer)
     }
 
-    #[cfg(any(
-        feature = "vello",
-        all(
-            not(feature = "alt-renderer"),
-            not(all(target_os = "ios", target_abi = "sim"))
-        )
-    ))]
+    #[cfg(any(feature = "vello-hybrid", feature = "vello"))]
     pub fn with_features_and_limits(features: Option<Features>, limits: Option<Limits>) -> Self {
-        let vello_renderer = InnerRenderer::with_options(VelloRendererOptions {
+        let vello_renderer = InnerRenderer::with_options(InnerRendererOptions {
             features,
             limits,
             ..Default::default()
